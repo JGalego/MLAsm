@@ -32,6 +32,7 @@ TEST_OBJECTS = $(TEST_SOURCES:$(TEST_DIR)/%.c=$(BUILD_DIR)/tests/%.o)
 STATIC_LIB = $(LIB_DIR)/libmlasm.a
 SHARED_LIB = $(LIB_DIR)/libmlasm.so
 TEST_RUNNER = $(BUILD_DIR)/test_runner
+UNIT_TESTS = $(BUILD_DIR)/unit_tests
 BENCHMARK = $(BUILD_DIR)/benchmark
 
 # Detect CPU features
@@ -42,10 +43,10 @@ ifneq (,$(findstring avx512,$(CPU_FEATURES)))
 endif
 
 # Default target
-all: directories $(STATIC_LIB) $(TEST_RUNNER) $(BENCHMARK)
+all: directories $(STATIC_LIB) $(TEST_RUNNER) $(UNIT_TESTS) $(BENCHMARK)
 
 # Build with shared library
-all-shared: directories $(STATIC_LIB) $(SHARED_LIB) $(TEST_RUNNER) $(BENCHMARK)
+all-shared: directories $(STATIC_LIB) $(SHARED_LIB) $(TEST_RUNNER) $(UNIT_TESTS) $(BENCHMARK)
 
 # Create necessary directories
 directories:
@@ -85,6 +86,10 @@ $(SHARED_LIB): $(SHARED_ASM_OBJECTS) $(SHARED_C_OBJECTS)
 $(TEST_RUNNER): $(BUILD_DIR)/tests/test_main.o $(STATIC_LIB)
 	$(CC) -no-pie -o $@ $^ $(LD_FLAGS)
 
+# Build unit tests (only unit_tests.c)
+$(UNIT_TESTS): $(BUILD_DIR)/tests/unit_tests.o $(STATIC_LIB)
+	$(CC) -no-pie -o $@ $^ $(LD_FLAGS)
+
 # Build benchmark suite
 $(BENCHMARK): $(BUILD_DIR)/tests/benchmark.o $(STATIC_LIB)
 	$(CC) -no-pie -o $@ $^ $(LD_FLAGS)
@@ -103,19 +108,31 @@ install-libs: $(STATIC_LIB) $(SHARED_LIB)
 install: install-headers install-libs
 
 # Test targets
-test-unit: $(TEST_RUNNER)
+test: $(TEST_RUNNER) $(UNIT_TESTS)
 	@echo "Running unit tests..."
-	@$(TEST_RUNNER) --unit
+	@./$(UNIT_TESTS)
+	@echo ""
+	@echo "Running integration tests..."
+	@./$(TEST_RUNNER)
+
+test-unit: $(UNIT_TESTS)
+	@echo "Running unit tests..."
+	@./$(UNIT_TESTS)
 
 test-integration: $(TEST_RUNNER)
 	@echo "Running integration tests..."
-	@$(TEST_RUNNER) --integration
+	@./$(TEST_RUNNER)
 
 test-performance: $(BENCHMARK)
 	@echo "Running performance benchmarks..."
-	@$(BENCHMARK)
+	@./$(BENCHMARK)
 
 test-all: test-unit test-integration test-performance
+
+test-memory: $(UNIT_TESTS) $(TEST_RUNNER)
+	@echo "Running memory leak tests..."
+	@valgrind --leak-check=full --error-exitcode=1 ./$(UNIT_TESTS)
+	@valgrind --leak-check=full --error-exitcode=1 ./$(TEST_RUNNER) --unit
 
 # Debugging targets
 debug: CC_FLAGS += -DDEBUG -O0
