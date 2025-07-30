@@ -47,7 +47,7 @@ extern size_t ml_linear_regression_memory_usage(const ml_model_t* model);
  * @brief Check if CPUID instruction is supported and execute it
  */
 static bool check_cpu_feature(int leaf, int subleaf, int reg, int bit) {
-    uint32_t eax, ebx, ecx, edx;
+    uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
     
     /* Use GCC's builtin if available */
     #ifdef __GNUC__

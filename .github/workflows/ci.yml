@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y nasm build-essential valgrind
+    
+    - name: Build
+      run: make all
+    
+    - name: Run tests
+      run: ./build/test_runner
+    
+    - name: Run benchmarks
+      run: ./build/benchmark
+    
+    - name: Memory check
+      run: valgrind --leak-check=full --error-exitcode=1 ./build/test_runner --unit
+    
+    - name: Security check
+      run: |
+        sudo apt-get install -y cppcheck
+        cppcheck --enable=all --error-exitcode=1 --suppress=missingIncludeSystem --suppress=unusedFunction --suppress=unreadVariable src/ tests/

@@ -106,8 +106,8 @@ void benchmark_vector_operations(void) {
             
             /* Warmup */
             for (int i = 0; i < WARMUP_ITERATIONS; i++) {
-                volatile float result = ml_vector_dot(vec1, vec2);
-                (void)result;
+                volatile float dot_result = ml_vector_dot(vec1, vec2);
+                (void)dot_result;
             }
             
             /* Actual benchmark */

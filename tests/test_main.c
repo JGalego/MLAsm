@@ -75,7 +75,9 @@ void test_framework_init(void) {
     /* Test version string */
     const char* version = ml_get_version();
     TEST_ASSERT(version != NULL && strlen(version) > 0, "Version string retrieval");
-    printf("Framework Version: %s\n", version);
+    if (version != NULL) {
+        printf("Framework Version: %s\n", version);
+    }
     
     /* Test system info */
     printf("System Information:\n");
