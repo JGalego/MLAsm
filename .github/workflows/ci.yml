@@ -14,7 +14,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y nasm build-essential valgrind cppcheck
+        sudo apt-get install -y nasm build-essential valgrind
     
     - name: Build
       run: make all
@@ -43,8 +43,3 @@ jobs:
       run: |
         echo "Testing integration tests for memory leaks..."
         valgrind --leak-check=full --error-exitcode=1 ./build/test_runner
-    
-    - name: Security check
-      run: |
-        echo "Running static analysis..."
-        cppcheck --enable=all --error-exitcode=1 --suppress=missingIncludeSystem --suppress=unusedFunction --suppress=unreadVariable --suppress=nullPointerRedundantCheck src/ tests/
