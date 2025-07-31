@@ -222,11 +222,10 @@ ml_activation_sigmoid_asm:
     ; Load constants directly on stack
     sub rsp, 32
     mov dword [rsp], 0x3F800000      ; 1.0f
-    mov dword [rsp+4], 0x3F000000    ; 0.5f
-    mov dword [rsp+8], 0x3E800000    ; 0.25f
-    mov dword [rsp+12], 0x7FFFFFFF   ; abs_mask
-    mov dword [rsp+16], 0xC1200000   ; -10.0f
-    mov dword [rsp+20], 0x41200000   ; 10.0f
+    mov dword [rsp+4], 0xC2280000    ; -42.0f (extreme negative threshold)
+    mov dword [rsp+8], 0x42280000    ; 42.0f (extreme positive threshold)
+    mov dword [rsp+12], 0x33D6BF95   ; 1e-7f (epsilon for bounds)
+    mov dword [rsp+16], 0x3F7FFFFF   ; 1.0f - 1e-7f (close to 1 but not exactly 1)
     
     xor rax, rax               ; Index counter
     
@@ -237,37 +236,74 @@ ml_activation_sigmoid_asm:
     ; Load input value
     movss xmm0, [rdi + rax*4]
     
-    ; Clamp to [-10, 10] to avoid overflow
-    movss xmm1, [rsp+16]     ; -10.0f
-    movss xmm2, [rsp+20]     ; 10.0f
-    maxss xmm0, xmm1          ; max(-10, x)
-    minss xmm0, xmm2          ; min(10, max(-10, x))
+    ; Handle extreme values for numerical stability
+    ; if x > 42, sigmoid(x) ≈ 1.0
+    ; if x < -42, sigmoid(x) ≈ 0.0
     
-    ; Fast sigmoid approximation using rational function
-    ; sigmoid(x) ≈ 0.5 + 0.25*x / (1 + |x|/2)
+    movss xmm1, [rsp+8]      ; 42.0f
+    comiss xmm0, xmm1
+    ja .set_one              ; x > 42, set to 1
     
-    ; Calculate |x|
-    movss xmm1, xmm0
-    movss xmm3, [rsp+12]     ; abs_mask
-    andps xmm1, xmm3         ; |x|
+    movss xmm1, [rsp+4]      ; -42.0f
+    comiss xmm0, xmm1
+    jb .set_zero             ; x < -42, set to 0
     
-    ; Calculate denominator: 1 + |x|/2
-    movss xmm3, [rsp+4]      ; 0.5f
-    mulss xmm1, xmm3         ; |x|/2
+    ; For reasonable values, compute sigmoid = 1 / (1 + exp(-x))
+    ; Negate x
+    xorps xmm1, xmm1         ; Clear xmm1 to 0
+    subss xmm1, xmm0         ; 0 - x = -x
+    
+    ; Call expf(-x) - we need to preserve registers
+    push rax                 ; Save loop counter
+    push rdx                 ; Save array size
+    push rdi                 ; Save input pointer
+    push rsi                 ; Save output pointer
+    sub rsp, 8               ; Align stack to 16 bytes
+    
+    movss xmm0, xmm1         ; Move -x to xmm0 for expf argument
+    call expf wrt ..plt      ; exp(-x)
+    
+    add rsp, 8               ; Restore stack alignment
+    pop rsi                  ; Restore output pointer
+    pop rdi                  ; Restore input pointer  
+    pop rdx                  ; Restore array size
+    pop rax                  ; Restore loop counter
+    movss xmm1, xmm0         ; Store exp(-x) result
+    
+    ; Calculate 1 + exp(-x)
+    movss xmm2, [rsp]        ; 1.0f
+    addss xmm1, xmm2         ; 1 + exp(-x)
+    
+    ; Calculate 1 / (1 + exp(-x))
+    divss xmm2, xmm1         ; 1 / (1 + exp(-x))
+    movss xmm0, xmm2
+    
+    ; Ensure result is strictly in (0,1) - clamp if needed
+    xorps xmm3, xmm3         ; 0.0f
+    comiss xmm0, xmm3
+    jbe .clamp_to_epsilon    ; if result <= 0, clamp to epsilon
+    
     movss xmm3, [rsp]        ; 1.0f
-    addss xmm1, xmm3         ; 1 + |x|/2
+    comiss xmm0, xmm3
+    jae .clamp_to_one_minus_epsilon  ; if result >= 1, clamp to 1-epsilon
+    jmp .store_result
     
-    ; Calculate numerator: 0.25*x
-    movss xmm3, [rsp+8]      ; 0.25f
-    mulss xmm0, xmm3         ; 0.25*x
+.clamp_to_epsilon:
+    movss xmm0, [rsp+12]     ; epsilon
+    jmp .store_result
     
-    ; Divide: (0.25*x) / (1 + |x|/2)
-    divss xmm0, xmm1
+.clamp_to_one_minus_epsilon:
+    movss xmm0, [rsp+16]     ; 1.0f - epsilon
+    jmp .store_result
     
-    ; Add 0.5
-    movss xmm3, [rsp+4]      ; 0.5f
-    addss xmm0, xmm3
+.set_one:
+    movss xmm0, [rsp+16]     ; 1.0f - epsilon (very close to 1 but not exactly 1)
+    jmp .store_result
     
+.set_zero:
+    movss xmm0, [rsp+12]     ; epsilon (very close to 0 but not exactly 0)
+    
+.store_result:
     ; Store result
     movss [rsi + rax*4], xmm0
     
@@ -447,19 +483,27 @@ ml_activation_softmax_asm:
     movss xmm1, [rdi + rax*4]
     subss xmm1, xmm0           ; x_i - max
     
-    ; Compute exp(x_i - max) using fast approximation
-    ; For now, use a simple approximation: exp(x) ≈ 1 + x + x²/2 for small x
-    movss xmm3, xmm1           ; x
-    mulss xmm3, xmm3           ; x²
-    movss xmm4, [rsp+4]        ; 0.5f
-    mulss xmm3, xmm4           ; x²/2
-    addss xmm3, xmm1           ; x + x²/2
-    movss xmm4, [rsp]          ; 1.0f
-    addss xmm3, xmm4           ; 1 + x + x²/2
+    ; Compute exp(x_i - max) using proper exponential function
+    push rax                   ; Save loop counter
+    push rdx                   ; Save array size
+    push rdi                   ; Save input pointer  
+    push rsi                   ; Save output pointer
+    sub rsp, 16                ; Align stack + save XMM registers
+    movss [rsp], xmm0          ; Save max value
+    movss [rsp+4], xmm2        ; Save sum
     
-    ; Clamp to positive values
-    xorps xmm4, xmm4
-    maxss xmm3, xmm4
+    movss xmm0, xmm1           ; Move argument to xmm0 for expf
+    call expf wrt ..plt        ; Call exponential function
+    movss xmm3, xmm0           ; Store result
+    
+    ; Restore registers
+    movss xmm2, [rsp+4]        ; Restore sum
+    movss xmm0, [rsp]          ; Restore max value
+    add rsp, 16                ; Restore stack alignment
+    pop rsi                    ; Restore output pointer
+    pop rdi                    ; Restore input pointer
+    pop rdx                    ; Restore array size
+    pop rax                    ; Restore loop counter
     
     ; Store temporary result
     movss [rsi + rax*4], xmm3

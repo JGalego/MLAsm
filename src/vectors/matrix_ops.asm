@@ -148,12 +148,17 @@ ml_matrix_mul_asm:
     ; Initialize result matrix to zero
     mov rax, r15
     imul rax, r9                ; total elements in C
-    shl rax, 2                  ; multiply by sizeof(float)
-    mov rdi, r14
-    xor rsi, rsi
-    mov rdx, rax
-    call memset                 ; Zero out result matrix
-    
+    mov rdi, r14                ; pointer to C
+    xor rbx, rbx                ; counter
+
+.zero_loop:
+    cmp rbx, rax
+    jge .zero_done
+    mov dword [rdi + rbx*4], 0  ; zero out element
+    inc rbx
+    jmp .zero_loop
+
+.zero_done:
     ; Block size for cache optimization
     mov r10, 64                 ; Block size (can be tuned)
     

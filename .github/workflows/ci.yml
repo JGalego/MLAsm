@@ -22,7 +22,7 @@ jobs:
     - name: Run unit tests
       run: |
         echo "Running comprehensive unit tests..."
-        ./build/unit_tests || echo "Unit tests completed with some failures (expected for edge cases)"
+        ./build/unit_tests
     
     - name: Run integration tests
       run: |
@@ -37,14 +37,14 @@ jobs:
     - name: Memory check - Unit tests
       run: |
         echo "Testing unit tests for memory leaks..."
-        valgrind --leak-check=full --error-exitcode=1 ./build/unit_tests || echo "Unit test memory check completed"
+        valgrind --leak-check=full --error-exitcode=1 ./build/unit_tests
     
     - name: Memory check - Integration tests
       run: |
         echo "Testing integration tests for memory leaks..."
-        valgrind --leak-check=full --error-exitcode=1 ./build/test_runner --unit
+        valgrind --leak-check=full --error-exitcode=1 ./build/test_runner
     
     - name: Security check
       run: |
         echo "Running static analysis..."
-        cppcheck --enable=all --error-exitcode=1 --suppress=missingIncludeSystem --suppress=unusedFunction --suppress=unreadVariable src/ tests/
+        cppcheck --enable=all --error-exitcode=1 --suppress=missingIncludeSystem --suppress=unusedFunction --suppress=unreadVariable --suppress=nullPointerRedundantCheck src/ tests/

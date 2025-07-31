@@ -330,12 +330,12 @@ ml_error_t ml_predict_batch(const ml_model_t* model,
 const char* ml_error_string(ml_error_t error) {
     switch (error) {
         case ML_SUCCESS:                return "Success";
-        case ML_ERROR_NULL_POINTER:     return "Null pointer";
-        case ML_ERROR_INVALID_MODEL:    return "Invalid model";
-        case ML_ERROR_INVALID_INPUT:    return "Invalid input";
-        case ML_ERROR_OUT_OF_MEMORY:    return "Out of memory";
-        case ML_ERROR_FILE_NOT_FOUND:   return "File not found";
-        case ML_ERROR_UNSUPPORTED_MODEL: return "Unsupported model";
+        case ML_ERROR_NULL_POINTER:     return "Null pointer error";
+        case ML_ERROR_INVALID_MODEL:    return "Invalid model error";
+        case ML_ERROR_INVALID_INPUT:    return "Invalid input error";
+        case ML_ERROR_OUT_OF_MEMORY:    return "Out of memory error";
+        case ML_ERROR_FILE_NOT_FOUND:   return "File not found error";
+        case ML_ERROR_UNSUPPORTED_MODEL: return "Unsupported model error";
         case ML_ERROR_DIMENSION_MISMATCH: return "Dimension mismatch";
         case ML_ERROR_COMPUTATION_FAILED: return "Computation failed";
         default:                        return "Unknown error";

@@ -217,15 +217,27 @@ ml_error_t ml_activation_sigmoid_ref(const ml_vector_t* input, ml_vector_t* outp
     }
     
     for (size_t i = 0; i < input->size; ++i) {
-        /* Numerically stable sigmoid */
+        /* Numerically stable sigmoid with bounds clamping */
         ml_float_t x = input->data[i];
+        ml_float_t result;
+        
         if (x >= 0) {
             ml_float_t exp_neg_x = expf(-x);
-            output->data[i] = 1.0f / (1.0f + exp_neg_x);
+            result = 1.0f / (1.0f + exp_neg_x);
         } else {
             ml_float_t exp_x = expf(x);
-            output->data[i] = exp_x / (1.0f + exp_x);
+            result = exp_x / (1.0f + exp_x);
         }
+        
+        /* Ensure result is strictly in (0,1) - never exactly 0 or 1 */
+        const ml_float_t epsilon = 1e-7f;
+        if (result <= 0.0f) {
+            result = epsilon;
+        } else if (result >= 1.0f) {
+            result = 1.0f - epsilon;
+        }
+        
+        output->data[i] = result;
     }
     
     return ML_SUCCESS;

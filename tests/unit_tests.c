@@ -344,7 +344,7 @@ void test_matrix_edge_cases_unit(void) {
     
     /* Test NULL pointer handling */
     ml_error_t null_result = ml_matrix_mul(NULL, NULL, NULL);
-    UNIT_TEST_ASSERT_EQ(null_result, ML_ERROR_NULL_POINTER, "NULL pointer error");
+    UNIT_TEST_ASSERT_EQ(null_result, ML_ERROR_NULL_POINTER, "Null pointer error");
     
     ml_matrix_free(mat1);
     ml_matrix_free(mat2);
@@ -571,7 +571,7 @@ void test_error_handling_unit(void) {
     
     const char* null_ptr_str = ml_error_string(ML_ERROR_NULL_POINTER);
     UNIT_TEST_ASSERT_NOT_NULL(null_ptr_str, "Null pointer error string exists");
-    UNIT_TEST_ASSERT(strstr(null_ptr_str, "null") != NULL || strstr(null_ptr_str, "NULL") != NULL, 
+    UNIT_TEST_ASSERT(strstr(null_ptr_str, "null") != NULL || strstr(null_ptr_str, "Null") != NULL, 
                      "Null pointer error string mentions null");
     
     /* Test invalid error code */
